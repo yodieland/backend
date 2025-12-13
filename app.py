@@ -349,6 +349,79 @@ async def contact(name: str = Form(), email: str = Form(), message: str = Form()
     return response
 
 # Admin routes
+# API endpoint to get users for admin page
+@app.get("/api/admin/users")
+async def get_admin_users(user: dict = Depends(get_current_user)):
+    """API endpoint to fetch all users for admin page"""
+    try:
+        if not user:
+            raise HTTPException(status_code=403, detail="Authentication required")
+        if not user.get("is_admin"):
+            raise HTTPException(status_code=403, detail="Admin access required")
+        
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        users = conn.execute("SELECT id, email, first_name, last_name, created_at, trial_end, last_activity, is_admin, is_active, is_approved FROM users ORDER BY created_at DESC").fetchall()
+        conn.close()
+        
+        # Convert to list of dicts
+        users_list = []
+        for u in users:
+            u_dict = dict(u)
+            users_list.append({
+                "id": u_dict["id"],
+                "email": u_dict.get("email", ""),
+                "first_name": u_dict.get("first_name", ""),
+                "last_name": u_dict.get("last_name", ""),
+                "full_name": f"{u_dict.get('first_name', '')} {u_dict.get('last_name', '')}".strip() or "N/A",
+                "created_at": u_dict.get("created_at", ""),
+                "trial_end": u_dict.get("trial_end", ""),
+                "last_activity": u_dict.get("last_activity", ""),
+                "is_admin": bool(u_dict.get("is_admin", 0)),
+                "is_active": bool(u_dict.get("is_active", 1)),
+                "is_approved": bool(u_dict.get("is_approved", 0))
+            })
+        
+        return {"users": users_list}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[API] Error fetching users: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# API endpoint to get contact messages for admin page
+@app.get("/api/admin/messages")
+async def get_admin_messages(user: dict = Depends(get_current_user)):
+    """API endpoint to fetch all contact messages for admin page"""
+    try:
+        if not user:
+            raise HTTPException(status_code=403, detail="Authentication required")
+        if not user.get("is_admin"):
+            raise HTTPException(status_code=403, detail="Admin access required")
+        
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        messages = conn.execute("SELECT name, email, message, created_at FROM contact_messages ORDER BY created_at DESC").fetchall()
+        conn.close()
+        
+        # Convert to list of dicts
+        messages_list = []
+        for m in messages:
+            m_dict = dict(m)
+            messages_list.append({
+                "name": m_dict.get("name", ""),
+                "email": m_dict.get("email", ""),
+                "message": m_dict.get("message", ""),
+                "created_at": m_dict.get("created_at", "")
+            })
+        
+        return {"messages": messages_list}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[API] Error fetching messages: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/admin.html")
 async def admin_page(request: Request, user: dict = Depends(get_current_user)):
     try:
