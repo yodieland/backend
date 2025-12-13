@@ -25,6 +25,9 @@ if FRONTEND_URL and not FRONTEND_URL.startswith(("http://", "https://")):
 # Remove trailing slash if present
 FRONTEND_URL = FRONTEND_URL.rstrip("/")
 
+# Log the frontend URL for debugging
+print(f"[CONFIG] FRONTEND_URL set to: {FRONTEND_URL}")
+
 # =========================================================
 app = FastAPI()
 
@@ -213,6 +216,14 @@ async def signup(email: str = Form(), password: str = Form(),
 
         # Redirect to pending approval page instead of dashboard
         redirect_url = f"{FRONTEND_URL}/signup.html?pending=1"
+        
+        # Validate redirect URL
+        if not redirect_url.startswith(("http://", "https://")):
+            print(f"[ERROR] Invalid redirect URL: {redirect_url}, FRONTEND_URL was: {FRONTEND_URL}")
+            redirect_url = "https://citycites.io/signup.html?pending=1"
+            print(f"[FIX] Using fallback URL: {redirect_url}")
+        
+        print(f"[SIGNUP] Redirecting to: {redirect_url}")
         response = RedirectResponse(url=redirect_url, status_code=303)
         return response
     except Exception as e:
@@ -255,6 +266,14 @@ async def login(email: str = Form(), password: str = Form()):
     # Redirect admins to admin page, regular users to dashboard
     redirect_path = "/admin.html" if user_dict.get("is_admin") else "/dashboard.html"
     redirect_url = f"{FRONTEND_URL}{redirect_path}"
+    
+    # Validate redirect URL
+    if not redirect_url.startswith(("http://", "https://")):
+        print(f"[ERROR] Invalid redirect URL: {redirect_url}, FRONTEND_URL was: {FRONTEND_URL}")
+        redirect_url = f"https://citycites.io{redirect_path}"
+        print(f"[FIX] Using fallback URL: {redirect_url}")
+    
+    print(f"[LOGIN] User {email} logged in, redirecting to: {redirect_url}")
     response = RedirectResponse(url=redirect_url, status_code=303)
     # Set secure cookie if using HTTPS
     is_secure = FRONTEND_URL.startswith("https://")
@@ -264,18 +283,34 @@ async def login(email: str = Form(), password: str = Form()):
 
 @app.get("/logout")
 async def logout():
-    response = RedirectResponse(url=f"{FRONTEND_URL}/", status_code=303)
+    redirect_url = f"{FRONTEND_URL}/"
+    if not redirect_url.startswith(("http://", "https://")):
+        redirect_url = "https://citycites.io/"
+    response = RedirectResponse(url=redirect_url, status_code=303)
     response.delete_cookie("session")
     return response
 
 @app.post("/contact")
 async def contact(name: str = Form(), email: str = Form(), message: str = Form()):
     conn = sqlite3.connect(DB_PATH)
-    conn.execute("INSERT INTO contact_messages (name,email,message,created_at) VALUES (?,?,?,?)",
-                 (name, email, message, datetime.utcnow().isoformat()))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("INSERT INTO contact_messages (name,email,message,created_at) VALUES (?,?,?,?)",
+                     (name, email, message, datetime.utcnow().isoformat()))
+        conn.commit()
+    except Exception as e:
+        print(f"[CONTACT] Database error: {e}")
+    finally:
+        conn.close()
+    
     redirect_url = f"{FRONTEND_URL}/contact.html?sent=1"
+    
+    # Validate redirect URL
+    if not redirect_url.startswith(("http://", "https://")):
+        print(f"[ERROR] Invalid redirect URL: {redirect_url}, FRONTEND_URL was: {FRONTEND_URL}")
+        redirect_url = "https://citycites.io/contact.html?sent=1"
+        print(f"[FIX] Using fallback URL: {redirect_url}")
+    
+    print(f"[CONTACT] Message received from {email}, redirecting to: {redirect_url}")
     return RedirectResponse(url=redirect_url, status_code=303)
 
 # Admin routes
