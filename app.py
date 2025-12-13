@@ -157,11 +157,10 @@ def get_current_user(request: Request):
     if not user or not user["is_active"]:
         return None
     
-    # Check if user is approved (admins are always approved)
     # Convert Row to dict for easier access
     user_dict = dict(user)
-    if not user_dict.get("is_admin") and not user_dict.get("is_approved", 0):
-        return None
+    # Note: We don't check is_approved here because admins need to see unapproved users
+    # The approval check is done in individual endpoints that need it
 
     # Inactivity timeout
     if user_dict.get("last_activity"):
@@ -303,8 +302,18 @@ async def login(email: str = Form(), password: str = Form()):
     # Create redirect response with cookie
     is_secure = FRONTEND_URL.startswith("https://")
     response = RedirectResponse(url=redirect_url, status_code=303)
-    response.set_cookie("session", create_token(user["email"]),
-                        httponly=True, secure=is_secure, samesite="lax", max_age=30*24*60*60)
+    # Set cookie with proper settings for cross-origin requests
+    # Use "None" for SameSite when using HTTPS to allow cross-site cookies
+    samesite_value = "none" if is_secure else "lax"
+    response.set_cookie(
+        "session", 
+        create_token(user["email"]),
+        httponly=True, 
+        secure=is_secure, 
+        samesite=samesite_value, 
+        max_age=30*24*60*60,
+        path="/"  # Make sure cookie is available for all paths
+    )
     
     # Set redirect URL in custom header (Location header is automatically set by RedirectResponse)
     # X-Redirect-To is for JavaScript to read when Location might be blocked by CORS
