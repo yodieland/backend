@@ -32,13 +32,35 @@ print(f"[CONFIG] FRONTEND_URL set to: {FRONTEND_URL}")
 app = FastAPI()
 
 # Add CORS middleware to allow requests from frontend
+# Support both HTTP and HTTPS versions of the frontend URL
+frontend_origins = [
+    FRONTEND_URL,
+    "http://localhost:8000",  # For local testing
+    "http://127.0.0.1:8000",  # For local testing
+]
+
+# Add HTTP version if FRONTEND_URL is HTTPS
+if FRONTEND_URL.startswith("https://"):
+    http_version = FRONTEND_URL.replace("https://", "http://")
+    frontend_origins.append(http_version)
+# Add HTTPS version if FRONTEND_URL is HTTP
+elif FRONTEND_URL.startswith("http://"):
+    https_version = FRONTEND_URL.replace("http://", "https://")
+    frontend_origins.append(https_version)
+
+# Also add common variations
+frontend_origins.extend([
+    "http://citycites.io",
+    "https://citycites.io",
+    "http://www.citycites.io",
+    "https://www.citycites.io",
+])
+
+print(f"[CORS] Allowing origins: {frontend_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        FRONTEND_URL,
-        "http://localhost:8000",  # For local testing
-        "http://127.0.0.1:8000",  # For local testing
-    ],
+    allow_origins=frontend_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
