@@ -229,9 +229,10 @@ async def signup(email: str = Form(), password: str = Form(),
                 (email, hashed, first_name, last_name, now.isoformat(),
                  now.isoformat(), trial_end.isoformat(), now.isoformat(), 0))
             conn.commit()
-        except sqlite3.IntegrityError:
+        except sqlite3.IntegrityError as e:
             conn.close()
-            return HTMLResponse("Email already registered", status_code=400)
+            print(f"[SIGNUP] Email already registered: {email}")
+            return HTMLResponse("Email already registered. Please use a different email or try logging in.", status_code=400)
         except Exception as e:
             conn.close()
             print(f"Database error during signup: {e}")
