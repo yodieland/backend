@@ -274,11 +274,16 @@ async def login(email: str = Form(), password: str = Form()):
         print(f"[FIX] Using fallback URL: {redirect_url}")
     
     print(f"[LOGIN] User {email} logged in, redirecting to: {redirect_url}")
-    response = RedirectResponse(url=redirect_url, status_code=303)
-    # Set secure cookie if using HTTPS
+    
+    # Create redirect response with cookie
     is_secure = FRONTEND_URL.startswith("https://")
+    response = RedirectResponse(url=redirect_url, status_code=303)
     response.set_cookie("session", create_token(user["email"]),
                         httponly=True, secure=is_secure, samesite="lax", max_age=30*24*60*60)
+    
+    # Also set redirect URL in response headers for debugging
+    response.headers["X-Redirect-To"] = redirect_url
+    
     return response
 
 @app.get("/logout")
@@ -311,7 +316,9 @@ async def contact(name: str = Form(), email: str = Form(), message: str = Form()
         print(f"[FIX] Using fallback URL: {redirect_url}")
     
     print(f"[CONTACT] Message received from {email}, redirecting to: {redirect_url}")
-    return RedirectResponse(url=redirect_url, status_code=303)
+    response = RedirectResponse(url=redirect_url, status_code=303)
+    response.headers["X-Redirect-To"] = redirect_url
+    return response
 
 # Admin routes
 @app.get("/admin.html")
