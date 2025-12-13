@@ -18,7 +18,12 @@ SESSION_EXPIRE_MINUTES = 30
 TRIAL_DAYS = 14
 
 # Frontend URL - update this to your IONOS domain
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://yourdomain.com")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://citycites.io")
+# Ensure FRONTEND_URL has proper protocol
+if FRONTEND_URL and not FRONTEND_URL.startswith(("http://", "https://")):
+    FRONTEND_URL = "https://" + FRONTEND_URL
+# Remove trailing slash if present
+FRONTEND_URL = FRONTEND_URL.rstrip("/")
 
 # =========================================================
 app = FastAPI()
@@ -251,8 +256,10 @@ async def login(email: str = Form(), password: str = Form()):
     redirect_path = "/admin.html" if user_dict.get("is_admin") else "/dashboard.html"
     redirect_url = f"{FRONTEND_URL}{redirect_path}"
     response = RedirectResponse(url=redirect_url, status_code=303)
+    # Set secure cookie if using HTTPS
+    is_secure = FRONTEND_URL.startswith("https://")
     response.set_cookie("session", create_token(user["email"]),
-                        httponly=True, secure=False, samesite="lax", max_age=30*24*60*60)
+                        httponly=True, secure=is_secure, samesite="lax", max_age=30*24*60*60)
     return response
 
 @app.get("/logout")
@@ -268,7 +275,8 @@ async def contact(name: str = Form(), email: str = Form(), message: str = Form()
                  (name, email, message, datetime.utcnow().isoformat()))
     conn.commit()
     conn.close()
-    return RedirectResponse(url="/contact.html?sent=1", status_code=303)
+    redirect_url = f"{FRONTEND_URL}/contact.html?sent=1"
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 # Admin routes
 @app.get("/admin.html")
@@ -593,6 +601,16 @@ async def admin_delete(user_id: int, user: dict = Depends(get_current_user)):
     conn.commit()
     conn.close()
     return RedirectResponse(url=f"{FRONTEND_URL}/admin.html", status_code=303)
+
+# Test endpoint to verify backend is running
+@app.get("/test")
+async def test():
+    return {
+        "status": "ok",
+        "message": "Backend is running",
+        "frontend_url": FRONTEND_URL,
+        "cors_configured": True
+    }
 
 # Mount static files AFTER route definitions
 # This ensures POST routes are handled before static file serving
