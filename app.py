@@ -33,30 +33,32 @@ app = FastAPI()
 
 # Add CORS middleware to allow requests from frontend
 # Support both HTTP and HTTPS versions of the frontend URL
-frontend_origins = [
+frontend_origins = set([
     FRONTEND_URL,
     "http://localhost:8000",  # For local testing
     "http://127.0.0.1:8000",  # For local testing
-]
+])
 
 # Add HTTP version if FRONTEND_URL is HTTPS
 if FRONTEND_URL.startswith("https://"):
     http_version = FRONTEND_URL.replace("https://", "http://")
-    frontend_origins.append(http_version)
+    frontend_origins.add(http_version)
 # Add HTTPS version if FRONTEND_URL is HTTP
 elif FRONTEND_URL.startswith("http://"):
     https_version = FRONTEND_URL.replace("http://", "https://")
-    frontend_origins.append(https_version)
+    frontend_origins.add(https_version)
 
 # Also add common variations
-frontend_origins.extend([
+frontend_origins.update([
     "http://citycites.io",
     "https://citycites.io",
     "http://www.citycites.io",
     "https://www.citycites.io",
 ])
 
-print(f"[CORS] Allowing origins: {frontend_origins}")
+# Convert back to list for CORS middleware
+frontend_origins_list = list(frontend_origins)
+print(f"[CORS] Allowing origins: {frontend_origins_list}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -303,8 +305,10 @@ async def login(email: str = Form(), password: str = Form()):
     response.set_cookie("session", create_token(user["email"]),
                         httponly=True, secure=is_secure, samesite="lax", max_age=30*24*60*60)
     
-    # Also set redirect URL in response headers for debugging
+    # Set redirect URL in custom header (Location header is automatically set by RedirectResponse)
+    # X-Redirect-To is for JavaScript to read when Location might be blocked by CORS
     response.headers["X-Redirect-To"] = redirect_url
+    response.headers["Access-Control-Expose-Headers"] = "X-Redirect-To, Location"
     
     return response
 
@@ -340,6 +344,7 @@ async def contact(name: str = Form(), email: str = Form(), message: str = Form()
     print(f"[CONTACT] Message received from {email}, redirecting to: {redirect_url}")
     response = RedirectResponse(url=redirect_url, status_code=303)
     response.headers["X-Redirect-To"] = redirect_url
+    response.headers["Access-Control-Expose-Headers"] = "X-Redirect-To, Location"
     return response
 
 # Admin routes
