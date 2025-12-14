@@ -111,7 +111,7 @@ def init_db():
         pass  # Column already exists
     c.execute("""CREATE TABLE IF NOT EXISTS contact_messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT, email TEXT, message TEXT, city_name TEXT, county_name TEXT, created_at TEXT
+        name TEXT, email TEXT, message TEXT, role TEXT, city_name TEXT, county_name TEXT, created_at TEXT
     )""")
     # Default admin – CHANGE PASSWORD ASAP
     # Only create admin if it doesn't exist
@@ -333,7 +333,7 @@ async def logout():
 
 @app.post("/contact")
 async def contact(name: str = Form(), email: str = Form(), message: str = Form(),
-                  city_name: str = Form(""), county_name: str = Form("")):
+                  role: str = Form(""), city_name: str = Form(""), county_name: str = Form("")):
     # Ensure database has the new columns (for backward compatibility)
     conn = sqlite3.connect(DB_PATH)
     try:
@@ -342,6 +342,8 @@ async def contact(name: str = Form(), email: str = Form(), message: str = Form()
         cursor.execute("PRAGMA table_info(contact_messages)")
         columns = [row[1] for row in cursor.fetchall()]
         
+        if "role" not in columns:
+            conn.execute("ALTER TABLE contact_messages ADD COLUMN role TEXT")
         if "city_name" not in columns:
             conn.execute("ALTER TABLE contact_messages ADD COLUMN city_name TEXT")
         if "county_name" not in columns:
@@ -349,8 +351,8 @@ async def contact(name: str = Form(), email: str = Form(), message: str = Form()
         conn.commit()
         
         # Insert the message with new fields
-        conn.execute("INSERT INTO contact_messages (name,email,message,city_name,county_name,created_at) VALUES (?,?,?,?,?,?)",
-                     (name, email, message, city_name or None, county_name or None, datetime.utcnow().isoformat()))
+        conn.execute("INSERT INTO contact_messages (name,email,message,role,city_name,county_name,created_at) VALUES (?,?,?,?,?,?,?)",
+                     (name, email, message, role or None, city_name or None, county_name or None, datetime.utcnow().isoformat()))
         conn.commit()
     except Exception as e:
         print(f"[CONTACT] Database error: {e}")
@@ -424,7 +426,7 @@ async def get_admin_messages(user: dict = Depends(get_current_user)):
         
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
-        messages = conn.execute("SELECT name, email, message, city_name, county_name, created_at FROM contact_messages ORDER BY created_at DESC").fetchall()
+        messages = conn.execute("SELECT name, email, message, role, city_name, county_name, created_at FROM contact_messages ORDER BY created_at DESC").fetchall()
         conn.close()
         
         # Convert to list of dicts
@@ -435,6 +437,7 @@ async def get_admin_messages(user: dict = Depends(get_current_user)):
                 "name": m_dict.get("name", ""),
                 "email": m_dict.get("email", ""),
                 "message": m_dict.get("message", ""),
+                "role": m_dict.get("role", ""),
                 "city_name": m_dict.get("city_name", ""),
                 "county_name": m_dict.get("county_name", ""),
                 "created_at": m_dict.get("created_at", "")
